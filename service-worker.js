@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'snake-game-gh-v1';
+const CACHE_NAME = 'snake-game-gh-v2';
 
-// Dynamically determine the base path of this service worker
-const BASE_PATH = self.location.pathname.replace(/sw\.js$/, '');
+// Dynamically determine the base path (e.g. '/' or '/my-repo/' on GitHub Pages)
+const BASE_PATH = self.location.pathname.replace(/service-worker\.js$/, '');
 
 const ASSETS = [
   BASE_PATH,
@@ -23,7 +23,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS).catch((err) => {
-        console.warn('Some assets could not be cached immediately:', err);
+        console.warn('Some static assets could not be cached immediately:', err);
       });
     })
   );
@@ -49,8 +49,6 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  const url = new URL(req.url);
-
   // HTML navigation requests
   if (req.mode === 'navigate') {
     event.respondWith(
@@ -69,7 +67,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets: cache first with network fallback & background update
+  // Assets: cache first with network fallback and background refresh
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) {
