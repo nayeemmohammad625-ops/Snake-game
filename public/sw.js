@@ -3,30 +3,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'snake-pwa-v1';
+const CACHE_NAME = 'snake-game-gh-v1';
 
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.svg',
-  '/pwa-192x192.png',
-  '/pwa-512x512.png',
-  '/pwa-maskable-512x512.png',
-  '/apple-touch-icon.png',
+// Dynamically determine the base path of this service worker
+const BASE_PATH = self.location.pathname.replace(/sw\.js$/, '');
+
+const ASSETS = [
+  BASE_PATH,
+  BASE_PATH + 'index.html',
+  BASE_PATH + 'manifest.json',
+  BASE_PATH + 'icon.svg',
+  BASE_PATH + 'pwa-192x192.png',
+  BASE_PATH + 'pwa-512x512.png',
+  BASE_PATH + 'pwa-maskable-512x512.png',
+  BASE_PATH + 'apple-touch-icon.png'
 ];
 
-// Install: precache essential shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      return cache.addAll(ASSETS).catch((err) => {
+        console.warn('Some assets could not be cached immediately:', err);
+      });
     })
   );
   self.skipWaiting();
 });
 
-// Activate: clean up outdated caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -42,66 +45,53 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network first with offline fallback for navigation, cache first / stale-while-revalidate for assets
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-
-  // Only handle GET requests
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
-  // HTML navigation request -> Network first with cache fallback
+  // HTML navigation requests
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(req, copy));
           }
-          return response;
+          return res;
         })
         .catch(() => {
-          return caches.match('/index.html') || caches.match('/');
+          return caches.match(BASE_PATH + 'index.html') || caches.match(BASE_PATH);
         })
     );
     return;
   }
 
-  // Google Fonts or static assets -> Cache First with background revalidation
+  // Assets: cache first with network fallback & background update
   event.respondWith(
-    caches.match(req).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch fresh copy in background to keep cache warm
+    caches.match(req).then((cached) => {
+      if (cached) {
         fetch(req)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(req, networkResponse));
+          .then((networkRes) => {
+            if (networkRes && networkRes.status === 200) {
+              caches.open(CACHE_NAME).then((c) => c.put(req, networkRes));
             }
           })
-          .catch(() => {
-            // Offline - already serving cached response
-          });
-        return cachedResponse;
+          .catch(() => {});
+        return cached;
       }
 
-      // If not in cache, fetch and store
       return fetch(req)
-        .then((networkResponse) => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-            return networkResponse;
+        .then((networkRes) => {
+          if (networkRes && networkRes.status === 200 && networkRes.type === 'basic') {
+            const copy = networkRes.clone();
+            caches.open(CACHE_NAME).then((c) => c.put(req, copy));
           }
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(req, responseToCache);
-          });
-          return networkResponse;
+          return networkRes;
         })
-        .catch(() => {
-          // If offline and requesting an image, could return fallback if needed
-          return cachedResponse;
-        });
+        .catch(() => cached);
     })
   );
 });
