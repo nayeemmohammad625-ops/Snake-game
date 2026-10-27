@@ -1,0 +1,7 @@
+{
+  "name": "Neon Snake Arcade",
+  "description": "A responsive modern neon Snake game featuring fluid grid-based canvas action, dynamic speed scaling, particle effects, synthesized Web Audio sound, and desktop/touch controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
